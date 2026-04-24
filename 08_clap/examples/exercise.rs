@@ -1,183 +1,121 @@
-// ============================================================================
-// exercise.rs — ТВОЁ ЗАДАНИЕ: СОЗДАЙ СВОЙ КРИПТО-CLI 🚀
-// ============================================================================
+// 🎯 ЗАДАНИЕ: Создай CLI для управления крипто-портфелем
 //
-// 🎯 Цель: Применить всё, что ты изучил
-// ⏱  Время: 30-60 минут
-// 📚 Что нужно: уроки 01-04
+// 💡 ADVICE: Это задание проверяет всё, что ты выучил:
+// - Позиционные аргументы, опции, флаги 🏗️
+// - ValueEnum для строгих списков 📋
+// - Валидацию и кастомные парсеры ✅
+// - Субкоманды 🎭
+// - Продвинутые фичи (env, count, hide) ⚡
 //
-// ============================================================================
+// Твоя задача — дописать структуру Cli так, чтобы код скомпилировался
+// и работал как описано ниже.
 
-// ╔══════════════════════════════════════════════════════════════════╗
-// ║  ЗАДАНИЕ: Крипто-кошелёк с портфелем                            ║
-// ║                                                                 ║
-// ║  Создай CLI-инструмент crypto-portfolio, который умеет:         ║
-// ║                                                                 ║
-// ║  1. Показывать портфель (balance)                               ║
-// ║     crypto-portfolio balance --address 0xabc --network ethereum ║
-// ║                                                                 ║
-// ║  2. Добавлять актив (add-token)                                 ║
-// ║     crypto-portfolio add-token --symbol ETH --amount 1.5        ║
-// ║                                                                 ║
-// ║  3. Удалять актив (remove-token)                                ║
-// ║     crypto-portfolio remove-token --symbol ETH --all            ║
-// ║     или                                                         ║
-// ║     crypto-portfolio remove-token --symbol ETH --amount 0.5     ║
-// ║     (--all и --amount конфликтуют!)                             ║
-// ║                                                                 ║
-// ║  4. Показывать портфель в USD (portfolio --usd)                 ║
-// ║                                                                 ║
-// ║  5. ★ Субкоманда history с флагом --verbose (Count)             ║
-// ║     crypto-portfolio history --days 30 -vv                     ║
-// ║                                                                 ║
-// ║  6. ★★ API-ключ из переменной окружения PORTFOLIO_API_KEY      ║
-// ║                                                                 ║
-// ║  7. ★★★ Кастомный парсер адреса (0x + 40 hex символов)        ║
-// ║                                                                 ║
-// ║  8. ★★★★ Кастомный help_template с именем и версией           ║
-// ║                                                                 ║
-// ╚══════════════════════════════════════════════════════════════════╝
+use clap::{Parser, Subcommand, ValueEnum};
 
-// ╔══════════════════════════════════════════════════════════════════╗
-// ║  ПОРТФОЛИО (данные для имитации)                                ║
-// ║                                                                 ║
-// ║  Это структура данных, которая будет хранить твой портфель.     ║
-// ║  Не трогай её — используй в своём коде.                        ║
-// ╚══════════════════════════════════════════════════════════════════╝
-struct Portfolio {
-    tokens: Vec<TokenHolding>,
+// 💡 ADVICE: Используй ValueEnum для типов операций.
+// Это гарантирует, что пользователь не введёт "buyy" вместо "buy".
+#[derive(Clone, ValueEnum)]
+enum Operation {
+    Buy,
+    Sell,
+    // 💡 HINT: Добавь сюда Staking с кастомным именем "stake"
 }
 
-struct TokenHolding {
-    symbol: String,
+// 💡 ADVICE: Токены — строгий список.
+#[derive(Clone, ValueEnum)]
+enum Token {
+    Bitcoin,
+    Ethereum,
+    // 💡 HINT: Добавь Solana
+}
+
+// 💡 ADVICE: Структура портфеля — подсказка.
+// Используй value_delimiter = ',' и num_args = 1.. для ввода
+// нескольких токенов в формате: --portfolio "BTC 0.5"
+struct PortfolioItem {
+    token: Token,
     amount: f64,
-    price_usd: f64,
 }
 
-impl Portfolio {
-    fn new() -> Self {
-        Portfolio {
-            tokens: vec![
-                TokenHolding { symbol: "ETH".into(), amount: 1.5, price_usd: 3500.0 },
-                TokenHolding { symbol: "BTC".into(), amount: 0.1, price_usd: 65000.0 },
-                TokenHolding { symbol: "SOL".into(), amount: 50.0, price_usd: 150.0 },
-                TokenHolding { symbol: "USDC".into(), amount: 1000.0, price_usd: 1.0 },
-            ],
-        }
+// 💡 ADVICE: Вспомогательная функция для парсинга PortfolioItem
+// Формат: "BTC 0.5" или "ETH 2.0"
+fn parse_portfolio(s: &str) -> Result<PortfolioItem, String> {
+    let parts: Vec<&str> = s.split_whitespace().collect();
+    if parts.len() != 2 {
+        return Err(format!("Неверный формат: {s}. Ожидается: TOKEN AMOUNT"));
     }
 
-    fn total_usd(&self) -> f64 {
-        self.tokens.iter().map(|t| t.amount * t.price_usd).sum()
-    }
+    let token = match parts[0].to_lowercase().as_str() {
+        "btc" => Token::Bitcoin,
+        "eth" => Token::Ethereum,
+        _ => return Err(format!("Неизвестный токен: {}", parts[0])),
+    };
 
-    fn find_token(&self, symbol: &str) -> Option<&TokenHolding> {
-        self.tokens.iter().find(|t| t.symbol.eq_ignore_ascii_case(symbol))
-    }
+    let amount: f64 = parts[1].parse()
+        .map_err(|_| format!("Неверная сумма: {}", parts[1]))?;
 
-    fn find_token_mut(&mut self, symbol: &str) -> Option<&mut TokenHolding> {
-        self.tokens.iter_mut().find(|t| t.symbol.eq_ignore_ascii_case(symbol))
-    }
+    Ok(PortfolioItem { token, amount })
 }
 
+// ══════════════════════════════════════════
+// 🎯 ТВОЯ ЗАДАЧА — допиши структуру Cli
+// ══════════════════════════════════════════
 
-// ╔══════════════════════════════════════════════════════════════════╗
-// ║  ТВОЯ ЗАДАЧА:                                                  ║
-// ║                                                                 ║
-// ║  Создай структуру Cli с #[derive(Parser)] и enum Commands       ║
-// ║  с #[derive(Subcommand)]. Используй всё, что изучил:            ║
-// ║                                                                 ║
-// ║  ✅ #[derive(Parser)]                                          ║
-// ║  ✅ #[derive(Subcommand)]                                       ║
-// ║  ✅ #[arg(short, long)]                                         ║
-// ║  ✅ #[arg(default_value_t)]                                     ║
-// ║  ✅ #[arg(conflicts_with)]                                      ║
-// ║  ✅ #[arg(action = clap::ArgAction::Count)]                     ║
-// ║  ✅ #[arg(env = "...")]                                        ║
-// ║  ✅ #[arg(value_parser = ...)]                                  ║
-// ║  ✅ #[command(help_template = ...)]                             ║
-// ║  ✅ #[arg(hide = true)]                                         ║
-// ╚══════════════════════════════════════════════════════════════════╝
+/// Управление крипто-портфелем
+///
+/// Требования:
+/// 1. Субкоманды: Trade, Portfolio, Help
+/// 2. Trade принимает:
+///    - --token / -t (ValueEnum: Bitcoin, Ethereum)
+///    - --amount / -a (f64)
+///    - --operation / -o (ValueEnum: Buy, Sell)
+///    - --price / -p (f64, опционально)
+///    - --verbose / -v (count)
+/// 3. Portfolio принимает:
+///    - список PortfolioItem через --items (num_args + value_parser)
+///    - --api-key / -k (env = "PORTFOLIO_API_KEY")
+///    - --format / -f (по умолчанию "table")
+/// 4. Help — просто выводит справку
+///
+/// 💡 ADVICE: Начни с субкоманд.
+/// Сделай enum Command с вариантами Trade, Portfolio, Help.
+/// Потом для каждого варианта — отдельную структуру.
+///
+/// 💡 ADVICE: Не забудь subcommand_required = true.
+/// Это защита от пустого запуска.
+#[derive(Parser)]
+#[command(name = "crypto-portfolio")]
+struct Cli {
+    // 💡 HINT: Добавь #[command(subcommand)]
+    // и поле command: Command
+}
 
-// ╔══════════════════════════════════════════════════════════════════╗
-// ║  ПОДСКАЗКА (разверни, если нужна помощь):                       ║
-// ║                                                                 ║
-// ║  Структура должна выглядеть примерно так:                       ║
-// ║                                                                 ║
-// ║  #[derive(Parser)]                                              ║
-// ║  #[command(name = "crypto-portfolio", ...)]                     ║
-// ║  struct Cli {                                                    ║
-// ║      #[arg(long, env = "PORTFOLIO_API_KEY")]                    ║
-// ║      api_key: String,                                            ║
-// ║                                                                  ║
-// ║      #[arg(short, long, action = clap::ArgAction::Count)]        ║
-// ║      verbose: u8,                                                ║
-// ║                                                                  ║
-// ║      #[command(subcommand)]                                      ║
-// ║      command: Commands,                                          ║
-// ║  }                                                               ║
-// ║                                                                  ║
-// ║  enum Commands {                                                 ║
-// ║      Balance { ... },                                            ║
-// ║      AddToken { ... },                                           ║
-// ║      RemoveToken { ... },                                        ║
-// ║      History { ... },                                            ║
-// ║  }                                                               ║
-// ╚══════════════════════════════════════════════════════════════════╝
+// 💡 HINT: Определи enum Command с #[derive(Subcommand)]
+// Варианты: Trade(TradeArgs), Portfolio(PortfolioArgs), Help
 
+// 💡 HINT: Определи структуры TradeArgs, PortfolioArgs
 
-#[allow(unused_imports)]
-use clap::{Parser, Subcommand};
-
-// ╔══════════════════════════════════════════════════════════════════╗
-// ║  НАПИШИ СВОЙ КОД ЗДЕСЬ 👇                                       ║
-// ╚══════════════════════════════════════════════════════════════════╝
-
-// ТВОЯ СТРУКТУРА Cli
-// ...
-
-// ТВОИ СУБКОМАНДЫ
-// ...
-
-// ФУНКЦИЯ ПАРСЕРА АДРЕСА (если нужна)
-// ...
-
+// ══════════════════════════════════════════
+// НЕ ТРОГАЙ main() — он уже готов
+// ══════════════════════════════════════════
 
 fn main() {
-    // ╔══════════════════════════════════════════════════════════════╗
-    // ║  РАСКОММЕНТИРУЙ ЭТУ СТРОКУ, КОГДА БУДЕШЬ ГОТОВ:              ║
-    // ║  let cli = Cli::parse();                                     ║
-    // ╚══════════════════════════════════════════════════════════════╝
+    let cli = Cli::parse();
 
-    println!("📂 Крипто-портфель");
-    println!("━━━━━━━━━━━━━━━━━");
-    println!("💡 Открой файл examples/exercise.rs и выполни задание!");
-
-    // ╔══════════════════════════════════════════════════════════════╗
-    // ║  ДЛЯ ПРОВЕРКИ СВОЕГО РЕШЕНИЯ:                               ║
-    // ║                                                             ║
-    // ║  cargo run --example exercise -- --help                      ║
-    // ║  cargo run --example exercise -- balance --address 0xabc     ║
-    // ║  cargo run --example exercise -- add-token --symbol ADA ...  ║
-    // ║                                                             ║
-    // ║  Запускай cargo check после каждого изменения:              ║
-    // ║  cargo check --example exercise                              ║
-    // ╚══════════════════════════════════════════════════════════════╝
+    // match по командам
+    // TODO: допиши match
+    println!("🎯 Задание выполнено! (когда допишешь Cli)");
 }
 
-
-// ============================================================================
-// ⚠️  КРИТЕРИИ ПРОВЕРКИ (чекни себя)
-// ============================================================================
+// 🧠 Подсказки:
+// 1. cargo run --example exercise -- trade --token Bitcoin --amount 0.5 --operation Buy
+// 2. cargo run --example exercise -- portfolio --items "BTC 0.5" "ETH 2.0" -k mykey
+// 3. cargo run --example exercise -- help
 //
-//  1. balance — принимает address (с парсером) и network (с default)
-//  2. add-token — принимает symbol, amount, price_usd
-//  3. remove-token — принимает symbol, ИЛИ --all ИЛИ --amount (конфликт!)
-//  4. history — принимает --days (default 30), --verbose (Count)
-//  5. portfolio --usd — показывает общую сумму в USD
-//  6. API_KEY из env
-//  7. Кастомный help с именем и версией
-//  8. --dev-mode скрыт из help
+// 💡 ADVICE: После завершения — проверь:
+// - cargo build --example exercise (компилируется?)
+// - cargo run --example exercise -- --help (красивый help?)
+// - cargo run --example exercise -- trade --help (help по команде?)
+// - Все ли комбинации аргументов работают?
 //
-//  Справился? Ты ОФИЦИАЛЬНО прошёл урок clap! 🎉
-//
-// ============================================================================
+// 🚀 Удачи!
