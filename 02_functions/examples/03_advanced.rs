@@ -1,66 +1,70 @@
-// ─── Продвинутые функции: замыкания, комбинаторы, generics ───
-
-#[derive(Debug, Clone, PartialEq)]
-enum TxStatus { Pending, Confirmed, Failed }
-
-#[derive(Debug, Clone)]
-struct Transaction {
-    id: u32,
-    from: String,
-    to: String,
-    amount: f64,
-    coin: String,
-    status: TxStatus,
-}
-
-fn demonstrate_closures() {
-    println!("--- Замыкания ---");
-    let add_one = |x: f64| -> f64 { x + 1.0 };
-    println!("add_one(5.0) = {}", add_one(5.0));
-    let fee_percent = 0.001;
-    let apply_fee = |amount: f64| amount * (1.0 - fee_percent);
-    println!("После комиссии с 1000: ${:.2}", apply_fee(1000.0));
-    let mut counter = 0;
-    let mut increment = || { counter += 1; counter };
-    println!("Счётчик: {}", increment());
-    println!("Счётчик: {}", increment());
-}
-
-fn demonstrate_combinators(txns: &[Transaction]) {
-    println!("\n--- Комбинаторы ---");
-    let confirmed: Vec<&Transaction> = txns.iter()
-        .filter(|t| t.status == TxStatus::Confirmed).collect();
-    println!("Успешных транзакций: {}", confirmed.len());
-    let amounts: Vec<f64> = txns.iter().map(|t| t.amount).collect();
-    println!("Суммы: {:?}", amounts);
-    let total: f64 = txns.iter().map(|t| t.amount).fold(0.0, |acc, x| acc + x);
-    println!("Общая сумма: ${:.2}", total);
-}
-
-fn find_first<T, F>(items: &[T], predicate: F) -> Option<&T>
-where F: Fn(&T) -> bool {
-    items.iter().find(|item| predicate(item))
-}
-
-fn demonstrate_generics(txns: &[Transaction]) {
-    println!("\n--- Обобщённые функции ---");
-    let btc_tx = find_first(txns, |t| t.coin == "BTC");
-    match btc_tx {
-        Some(tx) => println!("Первая BTC транзакция: ID {}", tx.id),
-        None => println!("BTC транзакций нет"),
-    }
-}
+// ============================================================
+// 🔴 УРОК: ПРОДВИНУТЫЕ ФУНКЦИИ
+// ============================================================
+//
+// ДЛЯ НОВИЧКА: Здесь мы разбираем самые мощные возможности Rust:
+// замыкания, обобщённые функции, комбинаторы (map/filter/fold).
+//
+// ЧТО ТЫ ВЫУЧИШЬ:
+// 1. Замыкания — анонимные функции с захватом контекста
+// 2. Fn vs FnMut vs FnOnce — три типа замыканий
+// 3. Комбинаторы: map, filter, fold — без for-циклов
+// 4. Обобщённые функции — одна для всех типов
+// ============================================================
 
 fn main() {
     println!("=== Продвинутые функции ===\n");
-    let txns = vec![
-        Transaction { id: 1, from: "0xaaa".into(), to: "0xbbb".into(), amount: 1.5, coin: "BTC".into(), status: TxStatus::Confirmed },
-        Transaction { id: 2, from: "0xccc".into(), to: "0xddd".into(), amount: 0.0, coin: "ETH".into(), status: TxStatus::Failed },
-        Transaction { id: 3, from: "0xeee".into(), to: "0xfff".into(), amount: 3.2, coin: "SOL".into(), status: TxStatus::Confirmed },
-        Transaction { id: 4, from: "0xggg".into(), to: "0xhhh".into(), amount: 5.0, coin: "BTC".into(), status: TxStatus::Pending },
-        Transaction { id: 5, from: "0xiii".into(), to: "0xjjj".into(), amount: 2.0, coin: "ETH".into(), status: TxStatus::Confirmed },
+    println!("--- Демо 1: Простое замыкание ---");
+    let fee_percent = 0.01;
+    let calculate_fee = |amount: f64| -> f64 { amount * fee_percent };
+    let fee = calculate_fee(1000.0);
+    println!("Комиссия с $1000: ${}", fee);
+    println!("\n--- Демо 2: Три типа замыканий ---");
+    let rate = 1.2;
+    let convert_fn = |amount: f64| amount * rate;
+    println!("Fn: {}", convert_fn(100.0));
+    println!("Fn: {} (второй раз норм)", convert_fn(200.0));
+    let mut counter = 0;
+    let mut count_fnmut = |item: &str| { counter += 1; println!("{}: {}", counter, item); };
+    count_fnmut("BTC");
+    count_fnmut("ETH");
+    let data = vec!["tx1", "tx2", "tx3"];
+    let consume = move || { println!("Обрабатываю: {:?}", data); };
+    consume();
+    println!("\n--- Демо 3: Комбинаторы ---");
+    let transactions = vec![
+        ("BTC", 100.0, "success"),
+        ("ETH", 200.0, "success"),
+        ("SOL", 50.0, "failed"),
+        ("BTC", 300.0, "success"),
     ];
-    demonstrate_closures();
-    demonstrate_combinators(&txns);
-    demonstrate_generics(&txns);
+    let total_success: f64 = transactions
+        .iter()
+        .filter(|(_, _, status)| *status == "success")
+        .map(|(_, amount, _)| amount)
+        .sum();
+    println!("💰 Успешных транзакций на сумму: ${}", total_success);
+    println!("\n--- Демо 4: fold ---");
+    let balances = vec![100.0, 200.0, 50.0, 300.0];
+    let total: f64 = balances.iter().fold(0.0, |acc, val| acc + val);
+    println!("Сумма балансов: ${}", total);
+    println!("\n--- Демо 5: Обобщённые функции ---");
+    fn find_max<T: PartialOrd>(items: &[T]) -> Option<&T> {
+        let mut max = items.first()?;
+        for item in items {
+            if item > max { max = item; }
+        }
+        Some(max)
+    }
+    let numbers = vec![10, 5, 8, 20, 3];
+    println!("Макс число: {:?}", find_max(&numbers));
+    let words = vec!["banana", "apple", "cherry", "date"];
+    println!("Макс слово: {:?}", find_max(&words));
+    println!("\n--- Демо 6: fn pointer ---");
+    fn add_one(x: i32) -> i32 { x + 1 }
+    fn double(x: i32) -> i32 { x * 2 }
+    fn apply(f: fn(i32) -> i32, x: i32) -> i32 { f(x) }
+    println!("add_one(5) = {}", apply(add_one, 5));
+    println!("double(5) = {}", apply(double, 5));
+    println!("\n🎯 Замыкания, комбинаторы, обобщения — без for-циклов");
 }
