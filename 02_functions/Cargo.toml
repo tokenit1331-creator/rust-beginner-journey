@@ -1,0 +1,5 @@
+[package]
+name = "functions"
+version = "1.0.0"
+edition = "2021"
+description = "Урок по функциям и управлению в Rust"
