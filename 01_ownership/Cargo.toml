@@ -1,0 +1,15 @@
+[package]
+name = "ownership-lesson"
+version = "1.0.0"
+edition = "2021"
+
+description = "🔥 Полный урок по владению (Ownership) в Rust"
+
+# Для генерации случайной сигнатуры транзакции
+[dependencies]
+rand = "0.8"
+
+# Примеры можно запускать:
+# cargo run --example 01_basic
+# cargo run --example 02_crypto_wallet
+# cargo run --example 03_borrowing
